@@ -1,0 +1,25 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: Create product staging directory
+    file: path="/mnt/redhat/staging-cds/sgraf-certs/cdn/" state=directory
+  - name: Create pulp_label staging directory
+    file: path="/mnt/redhat/staging-cds/sgraf-certs/cdn/{{ var_pulp_label }}/PRODUCTID/" state=directory
+  - name: Stage productid for given pulp_label
+    get_url: url="http://git.app.eng.bos.redhat.com/git/rcm/rcm-metadata.git/plain/{{ var_productid }}" dest="/mnt/redhat/staging-cds/sgraf-certs/cdn/{{ var_pulp_label }}/PRODUCTID/productid"
+  - name: Upload productid to pulp
+    command: "pub push-staged --target cdn-stage /mnt/redhat/staging-cds/sgraf-certs/cdn/"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_stage
+    failed_when: "'CLOSED' not in pulp_stage.stdout"
+#  - name: Upload productid to CDN
+#    command: "/mnt/redhat/scripts/rel-eng/utility/cds/push-staged --eng stage --cdn stage /mnt/redhat/staging-cds/sgraf-certs/cdn/"
+#    environment:
+#      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+#    sudo: yes
+  - name: Remove productid staging dir
+    file: path="/mnt/redhat/staging-cds/sgraf-certs/cdn/" state=absent
+

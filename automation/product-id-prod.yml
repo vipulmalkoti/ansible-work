@@ -1,0 +1,7 @@
+---
+# file: product-id-prod.yml
+- hosts: rcm-dev
+  roles:
+    - kinit
+    - product-id-prod
+

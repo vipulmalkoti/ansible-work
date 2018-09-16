@@ -1,0 +1,107 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+
+  #
+  # Unpack linux clients
+  #
+  - name: Create OSE clients staging directory
+    file: path="/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/" state=directory
+  - name: Create OSE clients store directory
+    file: path="/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/" state=directory
+  - name: Unpack rpm
+    shell: "rpm2cpio {{ var_rpm_path }} | cpio -idmv"
+    args:
+      chdir: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/"
+      creates: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/"
+
+  #
+  # Compress clients and stage
+  #
+  - name: Stage linux client
+    shell: "GZIP=-9 tar czf oc-{{ var_clients_version }}-linux.tar.gz --owner=0 --group=0 --directory /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/linux/ oc"
+    args:
+      chdir: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/"
+      creates: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-linux.tar.gz"
+    #sudo: yes
+  - name: Stage macosx client
+    shell: "GZIP=-9 tar czf oc-{{ var_clients_version }}-macosx.tar.gz --owner=0 --group=0 --directory /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/macosx/ oc"
+    args:
+      chdir: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/"
+      creates: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-macosx.tar.gz"
+    #sudo: yes
+  - name: Stage windows client
+    shell: "zip -9 --junk-paths oc-{{ var_clients_version }}-windows.zip /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/windows/oc.exe"
+    args:
+      chdir: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/"
+      creates: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-windows.zip"
+    #sudo: yes
+
+  #
+  # Edit pub-mapfile
+  #
+  - name: Check pub-mapfile.json exists
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json"
+    ignore_errors: True
+    register: pub_map_file
+    changed_when: "pub_map_file.rc != 0"
+  - name: Copy new pub-mapfile.json
+    copy: src=pub-mapfile.json dest=/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json mode=644 group=eng-rcm
+    when: pub_map_file|failed
+  - name: Backup pub-mapfile.json
+    command: "cp -f /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_backup"
+  - name: Check pub-mapfile.json doesn't contain this version yet
+    shell: 'if grep "{{ var_clients_version }}" /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json; then false; else true; fi'
+  - name: Compute checksum for linux client
+    shell: "sha256sum /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-linux.tar.gz | awk '{ print $1 }'"
+    register: linux_sum
+  - name: Compute checksum for macosx client
+    shell: "sha256sum /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-macosx.tar.gz | awk '{ print $1 }'"
+    register: macosx_sum
+  - name: Compute checksum for windows client
+    shell: "sha256sum /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-windows.zip | awk '{ print $1 }'"
+    register: windows_sum
+  - name: Prepare pub-mapfile.json_new
+    shell: "grep -B1000 ']' /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json | sed '$d' | sed '$d' > /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new"
+    #sudo: yes
+  - name: Add comma to allow next entry
+    shell: 'echo -e "            }," >> /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new'
+    when: pub_map_file|succeeded
+    #sudo: yes
+  - name: Create linux entry in pub-mapfile.json_new
+    shell: 'echo -e "            {   \n                \"attributes\": {\n                    \"description\": \"OpenShift v{{ var_ose_human }} Linux Client\"\n                },\n                \"filename\": \"oc-{{ var_clients_version }}-linux.tar.gz\",\n                \"relative_path\": \"rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-linux.tar.gz\",\n                \"sha256sum\": \"{{ linux_sum.stdout }}\",\n                \"version\": \"{{ var_clients_version }}\"\n            }," >> /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new'
+    #sudo: yes
+  - name: Create macosx entry in pub-mapfile.json_new
+    shell: 'echo -e "            {   \n                \"attributes\": {\n                    \"description\": \"OpenShift v{{ var_ose_human }} MacOSX Client\"\n                },\n                \"filename\": \"oc-{{ var_clients_version }}-macosx.tar.gz\",\n                \"relative_path\": \"rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-macosx.tar.gz\",\n                \"sha256sum\": \"{{ macosx_sum.stdout }}\",\n                \"version\": \"{{ var_clients_version }}\"\n            }," >> /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new'
+    #sudo: yes
+  - name: Create windows entry in pub-mapfile.json_new
+    shell: 'echo -e "            {   \n                \"attributes\": {\n                    \"description\": \"OpenShift v{{ var_ose_human }} Windows Client\"\n                },\n                \"filename\": \"oc-{{ var_clients_version }}-windows.zip\",\n                \"relative_path\": \"rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-windows.zip\",\n                \"sha256sum\": \"{{ windows_sum.stdout }}\",\n                \"version\": \"{{ var_clients_version }}\"\n            }" >> /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new'
+    #sudo: yes
+  - name: Add end of file to pub-mapfile.json_new
+    shell: 'echo -e "        ]\n    }\n}\n" >> /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new'
+    #sudo: yes
+  - name: Merge pub-mapfile.json_new back to pub-mapfile.json
+    shell: 'mv -f /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_new /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json'
+    #sudo: yes
+
+  #
+  # Upload Clients
+  #
+  - name: Upload clients to pulp
+    command: "pub push-staged --target cdn-stage --priority 30 --task-id-file=/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-stage /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/"
+    args:
+      creates: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-stage"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_stage
+    failed_when: "'CLOSED' not in pulp_stage.stdout"
+#  - name: Upload RPMs to CDN
+#    command: "/mnt/redhat/scripts/rel-eng/utility/cds/push-staged --eng stage --cdn stage /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/"
+#    environment:
+#      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+#    sudo: yes
+#  - name: Invalidate Unified Download Cache
+#    command: "/mnt/redhat/scripts/rel-eng/utility/cds/ud_cache_flush.py --server stage --eng 290 --password {{ stage_ud_pass }}"
+

@@ -1,0 +1,7 @@
+# file: hosts
+
+[machine1]
+<machine1 hostname>
+
+[machine2]
+<machine2 hostname>

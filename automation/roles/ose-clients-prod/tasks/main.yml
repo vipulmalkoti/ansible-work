@@ -1,0 +1,39 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: Check OSE clients staging directory
+    command: "ls /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/"
+  - name: Check unpacked rpm
+    command: "ls /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/"
+  - name: Check Stage linux client
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-linux.tar.gz"
+  - name: Check Stage macosx client
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-macosx.tar.gz"
+  - name: Check Stage windows client
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-windows.zip"
+  - name: Check pub-mapfile.json exists
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json"
+  - name: Check pub-mapfile.json contains this version
+    shell: 'grep "{{ var_clients_version }}" /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json'
+  - name: Check clients were uploaded to pulp stage
+    command: "ls /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-stage"
+  - name: Upload clients to pulp
+    command: "pub push-staged --target cdn-live --priority 30 --task-id-file=/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-prod /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/"
+    args:
+      creates: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-prod"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_prod
+    failed_when: "'CLOSED' not in pulp_prod.stdout"
+#  - name: Upload RPMs to CDN
+#    command: "/mnt/redhat/scripts/rel-eng/utility/cds/push-staged --eng prod --cdn prod /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/"
+#    environment:
+#      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+#    sudo: yes
+  - name: Invalidate Unified Download Cache
+    command: "pub flush-ud-cache --target cdn-live --eng-product 290"
+#  - name: Invalidate direct urls
+#    command: "/mnt/redhat/scripts/rel-eng/utility/akamai_cache_purge.py --user rcm-staff-list@redhat.com --pass {{ prod_akamai_pass }} --watch https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/ose/{{ var_ose_human }}/files/oc-{{ var_clients_version }}-windows.zip https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/ose/{{ var_ose_human }}/files/oc-{{ var_clients_version }}-macosx.tar.gz https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/ose/{{ var_ose_human }}/files/oc-{{ var_clients_version }}-linux.tar.gz"
+

@@ -1,0 +1,7 @@
+---
+# file: ose-clients-prod.yml
+- hosts: rcm-dev
+  roles:
+    - kinit
+    - ose-clients-prod
+

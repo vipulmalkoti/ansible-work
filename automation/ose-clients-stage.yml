@@ -1,0 +1,7 @@
+---
+# file: ose-clients-stage.yml
+- hosts: rcm-dev
+  roles:
+    - kinit
+    - ose-clients-stage
+

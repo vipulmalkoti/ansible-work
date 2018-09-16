@@ -1,0 +1,51 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: Make sure RCM engineers can write/delete this
+    shell: "chgrp eng-rcm -R /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/; chmod g+w -R /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    sudo: yes
+  - name: Remove unpacked rpm
+    file: path="/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/" state=absent
+  - name: Remove pulp-stage notification
+    file: path="/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-stage" state=absent
+  - name: Unstage linux client
+    file: path="/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-linux.tar.gz" state=absent
+  - name: Unstage macosx client
+    file: path="/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-macosx.tar.gz" state=absent
+  - name: Unstage windows client
+    file: path="/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-windows.zip" state=absent
+
+  - name: Check pub-mapfile.json exists
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json"
+  - name: Check pub-mapfile.json contains this version yet
+    shell: 'grep "{{ var_clients_version }}" /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json'
+  - name: Backup pub-mapfile.json
+    command: "cp -f /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json_backup"
+  - name: Remove last version from pub-mapfile.json
+    shell: sed -i -e :a -e '$d;N;2,32ba' -e 'P;D' /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json
+  - name: Add end of file to pub-mapfile.json_new
+    shell: 'echo -e "            }\n        ]\n    }\n}\n" >> /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json'
+
+  - name: Remove linux client from pulp
+    shell: pub delete-isos --target cdn-stage --force --channel rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64 "oc-{{ var_clients_version }}-linux.tar.gz"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_stage
+    failed_when: "'CLOSED' not in pulp_stage.stdout"
+  - name: Remove macosx client from pulp
+    shell: pub delete-isos --target cdn-stage --force --channel rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64 "oc-{{ var_clients_version }}-macosx.tar.gz"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_stage
+    failed_when: "'CLOSED' not in pulp_stage.stdout"
+  - name: Remove windows client from pulp
+    shell: pub delete-isos --target cdn-stage --force --channel rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64 "oc-{{ var_clients_version }}-windows.zip"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_stage
+    failed_when: "'CLOSED' not in pulp_stage.stdout"
+

@@ -1,0 +1,13 @@
+---
+# file: test.yml
+- name: Test on rcm-dev
+  hosts: rcm-dev
+  roles:
+    - kinit
+    - test
+#- name: Test on rcm-img-docker01
+#  hosts: rcm-img-docker01
+#  roles:
+#    - kinit
+#    - test
+

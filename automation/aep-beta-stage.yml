@@ -1,0 +1,7 @@
+---
+# file: aep-beta-stage.yml
+- hosts: rcm-dev
+  roles:
+    - kinit
+    - aep-beta-stage
+

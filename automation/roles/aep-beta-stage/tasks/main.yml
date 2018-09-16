@@ -1,0 +1,42 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: Create OSE staging directory
+    file: path="/mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/" state=directory
+  - name: Create AEP Beta staging directory
+    file: path="/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/" state=directory
+  - name: Stage OSE packages from given advisory
+    command: "/mnt/redhat/scripts/rel-eng/utility/rhn/rhn-advisory-files --stage=/mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/ {{ var_advisory }}"
+    args:
+      creates: "/mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/cdn/"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+  - name: Prepare AEP Beta rpms directory
+    command: rsync -a "/mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-rpms__x86_64/" "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-rpms__x86_64/"
+    args:
+      creates: "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-rpms__x86_64/"
+  - name: Prepare AEP Beta debug directory
+    command: rsync -a "/mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-debug-rpms__x86_64/" "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-debug-rpms__x86_64/"
+    args:
+      creates: "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-debug-rpms__x86_64/"
+    ignore_errors: True
+  - name: Prepare AEP Beta source directory
+    command: rsync -a "/mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-source-rpms__x86_64/" "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-source-rpms__x86_64/"
+    args:
+      creates: "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-source-rpms__x86_64/"
+  - name: Upload RPMs to pulp
+    command: "pub push-staged --target cdn-stage --task-id-file=/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/pulp-stage /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/"
+    args:
+      creates: "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/pulp-stage"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_stage
+    failed_when: "'FAILED' in pulp_stage.stdout"
+  #- name: Upload RPMs to CDN
+  #  command: "/mnt/redhat/scripts/rel-eng/utility/cds/push-staged --eng stage --cdn stage /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/"
+  #  environment:
+  #    KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+  #  sudo: yes
+

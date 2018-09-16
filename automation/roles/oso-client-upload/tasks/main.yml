@@ -1,0 +1,52 @@
+---
+# tasks file for oso-client-upload
+- include_vars: kerberos_pass.yml
+- name: "Create OSO Stage Location for Clients Upload"
+  shell: "mktemp -dt ocbinary.XXXXXXXXXX"
+  register: tmp_dir
+
+- name: "Make temp dir visible to others"
+  file:
+    path: "{{ tmp_dir.stdout }}"
+    mode: "u=rwx,o=rx"
+
+- name: "Verify Temp Dir is created and stored"
+  debug: 
+    msg: "Temp Dir: {{ tmp_dir.stdout }}"
+
+- name: "Create Version and Platform Subdirectories"
+  file:
+    path: "{{ tmp_dir.stdout }}/{{ var_clients_version }}/{{ item }}"
+    group: eng-rcm
+    mode: "u=rwx,g=rws,o=rx"
+    state: directory
+  with_items:
+    - "windows"
+    - "linux"
+    - "macosx"
+
+- name: "Copy Signed Linux / Mac OSX Binary into OSO Staging area"
+  copy:
+    dest: "{{ tmp_dir.stdout }}/{{ var_clients_version }}/{{ item }}/oc.tar.gz"
+    src: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-{{ item }}.tar.gz"
+    remote_src: yes
+  with_items:
+    - "linux"
+    - "macosx"
+
+- name: "Copy Signed Windows Binary into OSO Staging area"
+  copy:
+    dest: "{{ tmp_dir.stdout }}/{{ var_clients_version }}/windows/oc.zip"
+    src: "/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/oc-{{ var_clients_version }}-windows.zip"
+    remote_src: yes
+
+- name: "Run the Upload"
+  shell: "/srv/ocp-build/push-clients-to-oso.sh {{ tmp_dir.stdout }}/{{ var_clients_version }}"
+  become: true
+  become_method: su
+  become_user: "ocp-build"
+  register: upload_results
+
+- name: "See results"
+  debug:
+    msg: "Results = {{ upload_results.stdout }}"

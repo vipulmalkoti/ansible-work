@@ -1,0 +1,7 @@
+---
+# file: aep-beta-prod.yml
+- hosts: rcm-dev
+  roles:
+    - kinit
+    - aep-beta-prod
+

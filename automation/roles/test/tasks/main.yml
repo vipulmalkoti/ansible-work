@@ -1,0 +1,15 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: whoami
+    command: whoami
+    register: whoami
+  - debug: var=whoami.stdout
+  - name: whoami root
+    command: whoami
+    sudo: yes
+    register: whoami
+  - debug: var=whoami.stdout
+

@@ -1,0 +1,28 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: Remove pulp-prod notification
+    file: path="/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/pulp-prod" state=absent
+  - name: Check pub-mapfile.json exists
+    command: "ls /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json"
+  - name: Remove linux client from pulp
+    shell: pub delete-isos --target cdn-live --force --channel rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64 "oc-{{ var_clients_version }}-linux.tar.gz"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_prod
+    failed_when: "'CLOSED' not in pulp_prod.stdout"
+  - name: Remove macosx client from pulp
+    shell: pub delete-isos --target cdn-live --force --channel rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64 "oc-{{ var_clients_version }}-macosx.tar.gz"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_prod
+    failed_when: "'CLOSED' not in pulp_prod.stdout"
+  - name: Remove windows client from pulp
+    shell: pub delete-isos --target cdn-live --force --channel rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64 "oc-{{ var_clients_version }}-windows.zip"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_prod
+    failed_when: "'CLOSED' not in pulp_prod.stdout"
+

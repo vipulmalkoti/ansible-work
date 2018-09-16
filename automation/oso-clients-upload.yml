@@ -1,0 +1,7 @@
+---
+# file: oso-clients-upload.yml
+- hosts: rcm-guest
+  roles:
+#    - kinit
+    - oso-client-upload
+

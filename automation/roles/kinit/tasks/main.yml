@@ -1,0 +1,10 @@
+---
+  #
+  # kinit
+  #
+  - include_vars: kerberos_pass.yml
+  - name: kinit
+    shell: 'echo -n "{{ ansible_sudo_pass }}" | kinit "{{ ansible_ssh_user }}"@xyz.com'
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+

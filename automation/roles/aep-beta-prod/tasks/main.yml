@@ -1,0 +1,31 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+  - name: Check OSE staging directory
+    command: "ls -d /mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/"
+  - name: Check AEP Beta staging directory
+    command: "ls -d /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/"
+  - name: Check staged OSE packages from given advisory
+    command: "ls -d /mnt/redhat/staging-cds/ose-ET{{ var_advisory }}/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-rpms__x86_64/"
+  - name: Check AEP Beta rpms directory
+    command: "ls -d /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-rpms__x86_64/"
+  - name: Check AEP Beta source directory
+    command: "ls -d /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/rhel-7-server-aep-beta-source-rpms__x86_64/"
+  - name: Check RPMs were uploaded to pulp-stage
+    command: "ls /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/pulp-stage"
+  - name: Upload RPMs to pulp
+    command: "pub push-staged --target cdn-live --task-id-file=/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/pulp-prod /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/"
+    args:
+      creates: "/mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/pulp-prod"
+    environment:
+      KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+    register: pulp_prod
+    failed_when: "'FAILED' in pulp_prod.stdout"
+  #- name: Upload RPMs to CDN
+  #  command: "/mnt/redhat/scripts/rel-eng/utility/cds/push-staged --eng prod --cdn prod /mnt/redhat/staging-cds/aep-beta-ET{{ var_advisory }}/cdn/"
+  #  environment:
+  #    KRB5CCNAME: "/tmp/{{ ansible_ssh_user }}_ccache"
+  #  sudo: yes
+

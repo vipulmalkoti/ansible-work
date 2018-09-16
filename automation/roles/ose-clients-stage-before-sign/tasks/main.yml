@@ -1,0 +1,43 @@
+---
+  #
+  # test
+  #
+  - include_vars: kerberos_pass.yml
+
+  #
+  # Unpack linux clients
+  #
+  - name: "Check pub-mapfile.json doesn't contain this version yet"
+    shell: 'if grep "{{ var_clients_version }}" /mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/pub-mapfile.json; then false; else true; fi'
+    
+  - name: Create OSE clients staging directory
+    file: path="/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/" state=directory
+    
+  - name: Create OSE clients store directory
+    file: path="/mnt/redhat/rel-eng/OpenShiftEnterprise/{{ var_ose_human }}/images/cdn/rhel-7-server-ose-{{ var_ose_pulp }}-files__x86_64/ISOS/" state=directory
+    
+  - name: Unpack rpm
+    shell: "rpm2cpio {{ var_rpm_path }} | cpio -idmv"
+    args:
+      chdir: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/"
+      creates: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/"
+      
+  - name: Create directory for signed mac and windows builds
+    file: path="/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/{{ item }}_signed/" state=directory
+    with_items:
+      - "macosx"
+      - "windows"
+      
+  - name: "Make sure RCM engineers can write/delete /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/"
+    file:
+      path: "/mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/"
+      mode: "u=rwx,g=rwxs,o=rx"
+      group: "eng-rcm"
+      recurse: yes
+      
+  - debug:
+      msg: "Please sign {{ item }} client from /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/{{ item }}/ and upload back to /mnt/redhat/staging-cds/ose-clients-{{ var_clients_version }}/usr/share/atomic-openshift/{{ item }}_signed/"
+    with_items:
+      - "macosx"
+      - "windows"
+

@@ -1,0 +1,142 @@
+#!/usr/bin/python
+
+from argparse import ArgumentParser
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
+
+try:
+    from urlparse import urljoin
+except ImportError:
+    from urllib.parse import urljoin
+
+import json
+import requests
+import sys
+from time import sleep
+
+
+DEFAULT_CONFIG_FILE = '/etc/trigger-jenkins-build.conf'
+
+
+class Config(object):
+    def __init__(self, configfile, env=None):
+        self.configfile = configfile
+        self.env = env
+
+    def read(self, opts):
+        cf = configparser.SafeConfigParser()
+        cf.read(self.configfile)
+        if self.env is None:
+            try:
+                self.env = cf.get('default', 'env')
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                raise RuntimeError("specify environment")
+
+        self.config = {}
+        for key in ('api_url',
+                    'user',
+                    'api_token',
+                    'compose_repo',
+                    'branch',
+                    'brew_target'):
+            try:
+                self.config[key] = (getattr(opts, key, None) or
+                                    cf.get(self.env, key))
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                raise RuntimeError("missing value for %s" % key)
+
+
+class CLI(object):
+    def __init__(self, args=None):
+        parser = ArgumentParser(description="Trigger jenkins build")
+        parser.add_argument('--config', metavar='PATH',
+                            default=DEFAULT_CONFIG_FILE,
+                            help="path to config file, default: %s" %
+                            DEFAULT_CONFIG_FILE)
+        parser.add_argument('--env', metavar='ENV',
+                            help="Environment to use instead of default.env"
+                            "from config")
+        parser.add_argument('--compose-repo', metavar='URL',
+                            help="URL to repofile, baseurl of first entry is "
+                            "used for image-build task; overrides config file "
+                            "value")
+        parser.add_argument('--scratch', action='store_true',
+                            help="Perform a scratch build")
+        parser.add_argument('--component', metavar='COMPONENT',
+                            help="Component name")
+        parser.add_argument('--branch', metavar='BRANCH',
+                            help="Dist-git branch")
+        parser.add_argument('--brew-target', metavar='TARGET',
+                            help="Brew build target")
+        parser.add_argument('--from-task-id', metavar='ID',
+                            help="Use pre-built Brew image-build task")
+        self.opts = parser.parse_args(args=args)
+
+        config = Config(configfile=self.opts.config, env=self.opts.env)
+        config.read(self.opts)
+        self.config = config.config
+
+    def run(self):
+        payload = {
+            'COMPOSE_REPO': self.config['compose_repo'],
+        }
+
+        if self.opts.scratch:
+            payload['SCRATCH'] = 'true'
+
+        if self.opts.component:
+            payload['COMPONENT'] = self.opts.component
+
+        if self.opts.branch:
+            payload['BRANCH'] = self.config['branch']
+
+        if self.opts.brew_target:
+            payload['BREW_TARGET'] = self.config['brew_target']
+
+        if self.opts.from_task_id:
+            payload['FROM_TASK_ID'] = self.opts.from_task_id
+
+        auth = (self.config['user'], self.config['api_token'])
+        response = requests.post(self.config['api_url'],
+                                 auth=auth,
+                                 data=payload)
+        if response.status_code != requests.codes.CREATED:
+            print("{code}: {reason}\n{text}".format(code=response.status_code,
+                                                    reason=response.reason,
+                                                    text=response.text))
+            return 1
+
+        try:
+            queue_item_url = response.headers['Location']
+        except KeyError:
+            print("Location header missing from Jenkins response")
+            return 1
+
+        print("Queued: %s" % queue_item_url)
+        while True:
+            response = requests.get(urljoin(queue_item_url, 'api/json'),
+                                    auth=auth)
+            response.raise_for_status()
+            queue_item = response.json()
+            try:
+                url = queue_item['executable']['url']
+            except KeyError:
+                sleep(5)
+                continue
+
+            print("Running: %s" % url)
+            break
+
+        return 0
+
+if __name__ == '__main__':
+    try:
+        cli = CLI()
+        sys.exit(cli.run())
+    except RuntimeError as ex:
+        print(ex.message)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        pass
